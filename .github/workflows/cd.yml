@@ -75,3 +75,43 @@ jobs:
 
       - name: Publicar la imagen en el registro
         run: docker push "${{ steps.nombre.outputs.imagen }}:${{ steps.nombre.outputs.version }}"
+
+  # =========================================================================
+  # RETO 7 · Staging: prender la imagen y hacerle una prueba de humo
+  # =========================================================================
+  staging:
+    name: Desplegar en staging
+    needs: construir                # espera a que termine "construir"
+    runs-on: ubuntu-latest
+    environment: staging            # queda registrado como un despliegue a "staging"
+    env:
+      IMAGEN: ${{ needs.construir.outputs.imagen }}:${{ needs.construir.outputs.version }}
+    steps:
+      - name: Iniciar sesión en el registro de GitHub
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Prender la imagen publicada (la misma, no se construye otra)
+        run: docker run -d --name tramites -p 8000:8000 "$IMAGEN"
+
+      - name: Esperar a que la API conteste (máximo 60 segundos)
+        run: |
+          for intento in $(seq 1 30); do
+            if curl -fs http://localhost:8000/health; then exit 0; fi
+            sleep 2
+          done
+          echo "La API no contestó en 60 segundos. Estos son sus mensajes:"
+          docker logs tramites
+          exit 1
+
+      - name: Prueba de humo
+        run: |
+          RESPUESTA=$(curl -fs -X POST http://localhost:8000/clasificar \
+            -H "Content-Type: application/json" \
+            -d '{"texto": "quiero pagar la multa de tránsito"}')
+          echo "La API respondió: $RESPUESTA"
+          CATEGORIA=$(echo "$RESPUESTA" | jq -r .categoria)
+          # ¿En qué categoría debería caer "quiero pagar la multa de tránsito"?
+          # (renovacion, certificado, pago o queja)
+          test "$CATEGORIA" = "pago"
