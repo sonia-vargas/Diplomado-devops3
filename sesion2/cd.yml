@@ -1,0 +1,61 @@
+# Esqueleto del pipeline de CD — Sesión 2.
+# Cópienlo en .github/workflows/cd.yml de SU repositorio y resuelvan los TODO en orden.
+#
+# Reto 6 — cuando CI termine en verde sobre main, construir la imagen Docker y publicarla
+#          en GitHub Container Registry con la versión del commit como etiqueta.
+# Reto 7 — desplegar esa misma imagen en el ambiente "staging" y verificarla con una prueba de humo.
+# Reto 8 — desplegar en el ambiente "produccion" solo después de que alguien del equipo lo apruebe.
+#
+# Documentación: https://docs.github.com/actions
+
+name: CD
+
+on:
+  # TODO (reto 6): que arranque cuando TERMINE el workflow llamado "CI", solo sobre la rama main.
+  #                Pista: busquen el evento workflow_run en la documentación.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # TODO (reto 6): el pipeline necesita permiso para ESCRIBIR paquetes en el registro.
+
+jobs:
+  construir:
+    name: Construir y publicar la imagen
+    # TODO (reto 6): este job solo debe correr si CI terminó en verde.
+    #                Pista: github.event.workflow_run.conclusion
+    runs-on: ubuntu-latest
+    outputs:
+      imagen: ${{ steps.nombre.outputs.imagen }}
+      version: ${{ steps.nombre.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}   # el commit exacto que pasó CI
+
+      - name: Nombre y versión de la imagen   # ya resuelto: no lo toquen
+        id: nombre
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          echo "imagen=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "version=${SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Iniciar sesión en GitHub Container Registry   # ya resuelto
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # TODO (reto 6): construir la imagen con docker build, etiquetada como
+      #                ${{ steps.nombre.outputs.imagen }}:${{ steps.nombre.outputs.version }}
+      # TODO (reto 6): publicarla con docker push.
+
+  # TODO (reto 7): job "staging" que dependa de construir, use environment: staging,
+  #                arranque la imagen publicada con docker run en el puerto 8000,
+  #                espere a que GET /health responda y haga la prueba de humo:
+  #                POST /clasificar con {"texto": "quiero pagar la multa de tránsito"}
+  #                debe devolver la categoría "pago".
+
+  # TODO (reto 8): job "produccion" que dependa de staging, use environment: produccion
+  #                y le ponga a la misma imagen la etiqueta "produccion" SIN reconstruirla.
+  #                Pista: docker buildx imagetools create -t <destino> <origen>

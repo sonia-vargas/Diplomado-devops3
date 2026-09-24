@@ -1,0 +1,27 @@
+# Esqueleto del rollback — Sesión 2, reto 9.
+# Cópienlo en .github/workflows/rollback.yml de SU repositorio.
+
+name: Rollback
+
+on:
+  workflow_dispatch:
+    # TODO (reto 9): una entrada llamada "version" (obligatoria) con los 7 caracteres del commit a restaurar.
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  rollback:
+    name: Restaurar una versión en producción
+    runs-on: ubuntu-latest
+    # TODO (reto 9): que también pase por el ambiente produccion (y por su aprobación).
+    steps:
+      - name: Iniciar sesión en GitHub Container Registry
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # TODO (reto 9): comprobar que la versión existe (docker buildx imagetools inspect)
+      #                y mover la etiqueta "produccion" a esa versión.
+      #                Ojo: la entrada del usuario se pasa por env:, nunca pegada dentro del run.
